@@ -218,7 +218,7 @@ public:
     DWORD GetDwordValue(const std::wstring& valueName);
     ULONGLONG GetQwordValue(const std::wstring& valueName);
     std::wstring GetStringValue(const std::wstring& valueName);
-    
+
     enum class ExpandStringOption
     {
         DontExpand,
@@ -232,7 +232,6 @@ public:
 
     std::vector<std::wstring> GetMultiStringValue(const std::wstring& valueName);
     std::vector<BYTE> GetBinaryValue(const std::wstring& valueName);
-
 
     //
     // Query Operations
@@ -780,14 +779,12 @@ inline DWORD RegKey::GetDwordValue(const std::wstring& valueName)
     DWORD data{};                   // to be read from the registry
     DWORD dataSize = sizeof(data);  // size of data, in bytes
 
-    const DWORD flags = RRF_RT_REG_DWORD;
-    LONG retCode = ::RegGetValue(
+    LONG retCode = ::RegQueryValueEx(
         m_hKey,
-        nullptr, // no subkey
         valueName.c_str(),
-        flags,
+        nullptr,
         nullptr, // type not required
-        &data,
+        (LPBYTE) &data,
         &dataSize
     );
     if (retCode != ERROR_SUCCESS)
@@ -806,14 +803,12 @@ inline ULONGLONG RegKey::GetQwordValue(const std::wstring& valueName)
     ULONGLONG data{};               // to be read from the registry
     DWORD dataSize = sizeof(data);  // size of data, in bytes
 
-    const DWORD flags = RRF_RT_REG_QWORD;
-    LONG retCode = ::RegGetValue(
+    LONG retCode = ::RegQueryValueEx(
         m_hKey,
-        nullptr, // no subkey
         valueName.c_str(),
-        flags,
+        nullptr,
         nullptr, // type not required
-        &data,
+        (LPBYTE)&data,
         &dataSize
     );
     if (retCode != ERROR_SUCCESS)
@@ -832,11 +827,10 @@ inline std::wstring RegKey::GetStringValue(const std::wstring& valueName)
     // Get the size of the result string
     DWORD dataSize = 0; // size of data, in bytes
     const DWORD flags = RRF_RT_REG_SZ;
-    LONG retCode = ::RegGetValue(
+    LONG retCode = ::RegQueryValueEx(
         m_hKey,
-        nullptr, // no subkey
         valueName.c_str(),
-        flags,
+        nullptr,
         nullptr, // type not required
         nullptr, // output buffer not needed now
         &dataSize
@@ -853,13 +847,12 @@ inline std::wstring RegKey::GetStringValue(const std::wstring& valueName)
     result.resize(dataSize / sizeof(wchar_t));
 
     // Call RegGetValue for the second time to read the string's content
-    retCode = ::RegGetValue(
+    retCode = ::RegQueryValueEx(
         m_hKey,
-        nullptr,    // no subkey
         valueName.c_str(),
-        flags,
-        nullptr,    // type not required
-        &result[0], // output buffer
+        nullptr,
+        nullptr,             // type not required
+        (LPBYTE) &result[0], // output buffer
         &dataSize
     );
     if (retCode != ERROR_SUCCESS)
@@ -891,13 +884,12 @@ inline std::wstring RegKey::GetExpandStringValue(
 
     // Get the size of the result string
     DWORD dataSize = 0; // size of data, in bytes
-    LONG retCode = ::RegGetValue(
+    LONG retCode = ::RegQueryValueEx(
         m_hKey,
-        nullptr,    // no subkey
         valueName.c_str(),
-        flags,
-        nullptr,    // type not required
-        nullptr,    // output buffer not needed now
+        nullptr,
+        nullptr, // type not required
+        nullptr, // output buffer not needed now
         &dataSize
     );
     if (retCode != ERROR_SUCCESS)
@@ -912,13 +904,12 @@ inline std::wstring RegKey::GetExpandStringValue(
     result.resize(dataSize / sizeof(wchar_t));
 
     // Call RegGetValue for the second time to read the string's content
-    retCode = ::RegGetValue(
+    retCode = ::RegQueryValueEx(
         m_hKey,
-        nullptr,    // no subkey
         valueName.c_str(),
-        flags,
+        nullptr,
         nullptr,    // type not required
-        &result[0], // output buffer
+        (LPBYTE)&result[0], // output buffer
         &dataSize
     );
     if (retCode != ERROR_SUCCESS)
@@ -940,13 +931,12 @@ inline std::vector<std::wstring> RegKey::GetMultiStringValue(const std::wstring&
     // Request the size of the multi-string, in bytes
     DWORD dataSize = 0;
     const DWORD flags = RRF_RT_REG_MULTI_SZ;
-    LONG retCode = ::RegGetValue(
+    LONG retCode = ::RegQueryValueEx(
         m_hKey,
-        nullptr,    // no subkey
         valueName.c_str(),
-        flags,
-        nullptr,    // type not required
-        nullptr,    // output buffer not needed now
+        nullptr,
+        nullptr, // type not required
+        nullptr, // output buffer not needed now
         &dataSize
     );
     if (retCode != ERROR_SUCCESS)
@@ -961,13 +951,12 @@ inline std::vector<std::wstring> RegKey::GetMultiStringValue(const std::wstring&
     data.resize(dataSize / sizeof(wchar_t));
 
     // Read the multi-string from the registry into the vector object
-    retCode = ::RegGetValue(
+    retCode = ::RegQueryValueEx(
         m_hKey,
-        nullptr,    // no subkey
         valueName.c_str(),
-        flags,
-        nullptr,    // no type required
-        &data[0],   // output buffer
+        nullptr,
+        nullptr, // type not required
+        (LPBYTE)&data[0],
         &dataSize
     );
     if (retCode != ERROR_SUCCESS)
@@ -1006,14 +995,12 @@ inline std::vector<BYTE> RegKey::GetBinaryValue(const std::wstring& valueName)
 
     // Get the size of the binary data
     DWORD dataSize = 0; // size of data, in bytes
-    const DWORD flags = RRF_RT_REG_BINARY;
-    LONG retCode = ::RegGetValue(
+    LONG retCode = ::RegQueryValueEx(
         m_hKey,
-        nullptr,    // no subkey
         valueName.c_str(),
-        flags,
-        nullptr,    // type not required
-        nullptr,    // output buffer not needed now
+        nullptr,
+        nullptr, // type not required
+        nullptr, // output buffer not needed now
         &dataSize
     );
     if (retCode != ERROR_SUCCESS)
@@ -1025,13 +1012,12 @@ inline std::vector<BYTE> RegKey::GetBinaryValue(const std::wstring& valueName)
     std::vector<BYTE> data(dataSize);
 
     // Call RegGetValue for the second time to read the data content
-    retCode = ::RegGetValue(
+    retCode = ::RegQueryValueEx(
         m_hKey,
-        nullptr,    // no subkey
         valueName.c_str(),
-        flags,
-        nullptr,    // type not required
-        &data[0],   // output buffer
+        nullptr,
+        nullptr, // type not required
+        (LPBYTE)&data[0],
         &dataSize
     );
     if (retCode != ERROR_SUCCESS)
