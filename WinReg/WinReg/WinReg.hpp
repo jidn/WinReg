@@ -216,8 +216,10 @@ public:
     // 
 
     DWORD GetDwordValue(const std::wstring& valueName);
+    DWORD GetDwordValue(const std::wstring& valueName, const DWORD defaultValue);
     ULONGLONG GetQwordValue(const std::wstring& valueName);
     std::wstring GetStringValue(const std::wstring& valueName);
+    std::wstring GetStringValue(const std::wstring& valueName, const std::wstring& defaultValue);
 
     enum class ExpandStringOption
     {
@@ -258,7 +260,6 @@ public:
     void DeleteValue(const std::wstring& valueName);
     void DeleteKey(const std::wstring& subKey, REGSAM desiredAccess);
     void FlushKey();
-	void LoadPrivate(const std::wstring& filename);
     void LoadKey(const std::wstring& subKey, const std::wstring& filename);
     void SaveKey(const std::wstring& filename, SECURITY_ATTRIBUTES* securityAttributes);
 	void UnloadKey(const std::wstring& subkey);
@@ -266,6 +267,9 @@ public:
     void DisableReflectionKey();
     bool QueryReflectionKey();
     void ConnectRegistry(const std::wstring& machineName, HKEY hKeyPredefined);
+#ifdef SUPPORT_REGGETVALUE
+	void LoadPrivate(const std::wstring& filename);
+#endif
 
 
     // Return a string representation of Windows registry types
@@ -780,7 +784,16 @@ inline void RegKey::SetBinaryValue(
     }
 }
 
-
+inline DWORD RegKey::GetDwordValue(const std::wstring& valueName, const DWORD defaultValue)
+{
+	try {
+		return GetDwordValue(valueName);
+	}
+	catch (const RegException &)
+	{
+		return defaultValue;
+	}
+}
 inline DWORD RegKey::GetDwordValue(const std::wstring& valueName)
 {
     _ASSERTE(IsValid());
@@ -825,7 +838,7 @@ inline ULONGLONG RegKey::GetQwordValue(const std::wstring& valueName)
     ULONGLONG data{};               // to be read from the registry
     DWORD dataSize = sizeof(data);  // size of data, in bytes
 
-#ifdef SUPPORT_REGGETVALUE
+#ifndef SUPPORT_REGGETVALUE
     LONG retCode = ::RegQueryValueEx(
         m_hKey,
         valueName.c_str(),
@@ -852,6 +865,17 @@ inline ULONGLONG RegKey::GetQwordValue(const std::wstring& valueName)
     }
 
     return data;
+}
+
+inline std::wstring RegKey::GetStringValue(const std::wstring& valueName, const std::wstring& defaultValue)
+{
+	try {
+		return GetStringValue(valueName);
+	}
+	catch (const RegException &)
+	{
+		return defaultValue;
+	}
 }
 
 
@@ -1408,7 +1432,6 @@ inline void RegKey::DeleteValue(const std::wstring& valueName)
     }
 }
 
-
 inline void RegKey::DeleteKey(const std::wstring& subKey, const REGSAM desiredAccess)
 {
     _ASSERTE(IsValid());
@@ -1450,6 +1473,7 @@ inline void RegKey::LoadKey(const std::wstring& subKey, const std::wstring& file
 	m_loadedKeys.emplace_back(subKey);
 }
 
+#ifdef SUPPORT_REGGETVALUE
 inline void RegKey::LoadPrivate(const std::wstring& filename)
 {
 	Close();
@@ -1460,6 +1484,7 @@ inline void RegKey::LoadPrivate(const std::wstring& filename)
 		throw RegException{ "RegLoadKey failed.", retCode };
 	}
 }
+#endif
 
 inline void RegKey::UnloadKey(const std::wstring& subKey)
 {
