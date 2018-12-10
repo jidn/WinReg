@@ -103,7 +103,8 @@ public:
     // Throw RegException on failure.
     RegKey(HKEY hKeyParent, const std::wstring& subKey);
 
-    // Open the given registry key if it exists, else create a new key.
+    // Open the given registry key if it exists. 
+	// Create a new key if desiredAccess includes KEY_WRITE.
     // Allow the caller to specify the desired access to the key (e.g. KEY_READ
     // for read-only access).
     // For finer grained control, call the Create() method overloads.
@@ -369,7 +370,14 @@ inline RegKey::RegKey(const HKEY hKeyParent, const std::wstring& subKey)
 
 inline RegKey::RegKey(const HKEY hKeyParent, const std::wstring& subKey, REGSAM desiredAccess)
 {
-    Create(hKeyParent, subKey, desiredAccess);
+	if (desiredAccess & KEY_WRITE)
+	{
+		Create(hKeyParent, subKey, desiredAccess);
+	}
+	else
+	{
+		Open(hKeyParent, subKey, desiredAccess);
+	}
 }
 
 
