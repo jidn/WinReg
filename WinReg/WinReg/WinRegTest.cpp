@@ -6,11 +6,13 @@
 // 
 ////////////////////////////////////////////////////////////////////////// 
 
-#include "WinReg.hpp"   // Module to test
 #include <exception>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 using namespace std;
+#include "WinReg.hpp"   // Module to test
+
 using namespace winreg;
 
 const int kExitError = -1;
@@ -178,7 +180,7 @@ int TestGet(RegKey &key)
 	return failed_tests;
 }
 
-int TestEnumeration(RegKey& key, int expectedSubkeys, int expectedValues)
+int TestEnumeration(RegKey& key, unsigned int expectedSubkeys, unsigned int expectedValues)
 {
 	int failed_tests = 0;
 	vector<wstring> subkeys = key.EnumSubKeys();
@@ -208,13 +210,42 @@ void TestDelete(RegKey& key)
 	key.DeleteValue(L"TestValueBinary");
 }
 
+void TestGetWindowsVersion()
+{
+	std::vector<std::wstring> parts;
+	std::wstring name;
+	try {
+		winreg::RegKey key{ HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion" };
+		parts.push_back(key.GetStringValue(L"ProductName", L"Unknown"));
+		parts.push_back(key.GetStringValue(L"CSDVersion", L""));			// "Service pack 1"
+		parts.push_back(key.GetStringValue(L"ReleaseId", L""));				// "1809"
+		auto it = std::find_if(parts.cbegin(), parts.cend(), [](const auto& p) {return p.length() > 0; });
+		for (; it!= parts.cend(); ++it)
+		{
+			if (!it->length())
+				continue;
+			if (name.length())
+				name += L", ";
+			name += *it;
+		}
+		wcout << name << std::endl;
+	}
+	catch (const RegException& e)
+	{
+		cout << "\n*** Registry Exception: " << e.what();
+		cout << "\n*** [Windows API error code = " << e.ErrorCode() << endl << endl;
+	}
+}
+
 int main()
 {
 	constexpr int kExitOk = 0;
 	const DWORD totalSetValues = 6;
 	int failed_tests = 0;
 
-	RegKey key{ HKEY_CURRENT_USER, testSubKey };
+	TestGetWindowsVersion();
+
+	RegKey key{ HKEY_CURRENT_USER, testSubKey, KEY_WRITE|KEY_READ};
 	TestSet(key);
 	failed_tests += TestGet(key);
 
@@ -230,7 +261,7 @@ int main()
 			subkeyStr.append(L"key");
 			subkeyStr.append(to_wstring(i + 1));
 		}
-		RegKey subkey{ HKEY_CURRENT_USER, subkeyStr };
+		RegKey subkey{ HKEY_CURRENT_USER, subkeyStr, KEY_WRITE | KEY_READ };
 		TestSet(subkey);
 		failed_tests += TestGet(subkey);
 		failed_tests += TestEnumeration(subkey, 0, totalSetValues);
@@ -251,7 +282,7 @@ int main()
 	{
 		auto subkeys = key.EnumSubKeys();
 		for (auto it = subkeys.begin(); it != subkeys.end(); it++) {
-			RegKey ekey{ key.Get(), *it };
+			RegKey ekey{ key.Get(), *it, KEY_WRITE | KEY_READ };
 			failed_tests += TestGet(ekey);
 			failed_tests += TestEnumeration(ekey, 0, totalSetValues);
 			TestDelete(ekey);
@@ -306,11 +337,11 @@ int TestMounting()
 		{
 			adjust_privileges();
 
-			const wstring testSubKey = L"swimage-worker";
+			const wstring subKey = L"swimage-worker";
 			try {
 				RegKey key{ HKEY_USERS };
 
-				key.LoadKey(testSubKey, L"../../test");
+				key.LoadKey(subKey, L"../../test");
 				auto allKeys = key.EnumSubKeys();
 				if (allKeys.empty())
 				{
@@ -327,8 +358,8 @@ int TestMounting()
 			catch (const RegException&) { throw; }
 			try {
 				// This loaded registry should have been removed.
-				RegKey key{ HKEY_USERS, testSubKey };
-				wcout << "Loaded key [" << testSubKey << "] persists after object destruction." << endl;
+				RegKey key{ HKEY_USERS, subKey };
+				wcout << "Loaded key [" << subKey << "] persists after object destruction." << endl;
 				failed_tests++;
 			}
 			catch (const RegException&)

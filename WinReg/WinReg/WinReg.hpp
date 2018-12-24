@@ -62,7 +62,7 @@
 #include <utility>          // std::swap, std::pair
 #include <vector>           // std::vector
 
-
+#define SUPPORT_REGGETVALUE
 namespace winreg
 {
 
@@ -97,16 +97,13 @@ public:
     // Take ownership of the input key handle
     explicit RegKey(HKEY hKey) noexcept;
 
-    // Open the given registry key if it exists, else create a new key.
-    // Uses default KEY_READ|KEY_WRITE access.
+    // Open the given registry key if it exists for reading.
     // For finer grained control, call the Create() method overloads.
     // Throw RegException on failure.
     RegKey(HKEY hKeyParent, const std::wstring& subKey);
 
     // Open the given registry key if it exists. 
 	// Create a new key if desiredAccess includes KEY_WRITE.
-    // Allow the caller to specify the desired access to the key (e.g. KEY_READ
-    // for read-only access).
     // For finer grained control, call the Create() method overloads.
     // Throw RegException on failure.
     RegKey(HKEY hKeyParent, const std::wstring& subKey, REGSAM desiredAccess);
@@ -178,7 +175,7 @@ public:
     void Create(
         HKEY hKeyParent,
         const std::wstring& subKey,
-        REGSAM desiredAccess = KEY_READ | KEY_WRITE
+        REGSAM desiredAccess = KEY_READ
     );
 
     // Wrapper around RegCreateKeyEx
@@ -195,7 +192,7 @@ public:
     void Open(
         HKEY hKeyParent,
         const std::wstring& subKey,
-        REGSAM desiredAccess = KEY_READ | KEY_WRITE
+        REGSAM desiredAccess = KEY_READ
     );
 
 
