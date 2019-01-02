@@ -367,7 +367,7 @@ inline RegKey::RegKey(const HKEY hKeyParent, const std::wstring& subKey)
 
 inline RegKey::RegKey(const HKEY hKeyParent, const std::wstring& subKey, REGSAM desiredAccess)
 {
-	if (desiredAccess & KEY_WRITE)
+	if (desiredAccess & (KEY_SET_VALUE | KEY_CREATE_SUB_KEY))
 	{
 		Create(hKeyParent, subKey, desiredAccess);
 	}
