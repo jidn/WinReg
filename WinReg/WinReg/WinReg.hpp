@@ -62,7 +62,6 @@
 #include <utility>          // std::swap, std::pair
 #include <vector>           // std::vector
 
-#define SUPPORT_REGGETVALUE
 namespace winreg
 {
 
@@ -124,6 +123,8 @@ public:
     // Safely close the wrapped key handle (if any)
     ~RegKey() noexcept;
 
+	// Create a key off of this key
+	//RegKey Subkey(const std::wstring& subKey) const;
 
     //
     // Properties
@@ -164,7 +165,6 @@ public:
     // Note: There's also a non-member swap overload
     void SwapWith(RegKey& other) noexcept;
 
-
     //
     // Wrappers around Windows Registry APIs.
     // See the official MSDN documentation for these APIs for detailed explanations
@@ -172,6 +172,14 @@ public:
     // 
   
     // Wrapper around RegCreateKeyEx, that allows you to specify desired access
+    inline void Create(
+        // Use Get() for current hkey
+        const std::wstring& subKey,
+        REGSAM desiredAccess = KEY_READ
+    ) {
+        Create(Get(), subKey, desiredAccess);
+    }
+
     void Create(
         HKEY hKeyParent,
         const std::wstring& subKey,
@@ -273,6 +281,7 @@ public:
     // Return a string representation of Windows registry types
     static std::wstring RegTypeToString(DWORD regType);
 
+	operator HKEY() const { return Get(); }
     //
     // Relational comparison operators are overloaded as non-members
     // ==, !=, <, <=, >, >=
@@ -282,7 +291,7 @@ public:
 private:
     // The wrapped registry key handle
     HKEY m_hKey{ nullptr };
-	std::vector<std::wstring> m_loadedKeys;
+	//std::wstring m_loadedKey;
 };
 
 
@@ -293,14 +302,16 @@ class RegException
     : public std::runtime_error
 {
 public:
-    RegException(const char* message, LONG errorCode)
+    RegException(const char* message, LONG errorCode, wstring extra=L"")
         : std::runtime_error{ message }
         , m_errorCode{ errorCode }
+		, m_extra{ extra }
     {}
 
-    RegException(const std::string& message, LONG errorCode)
+    RegException(const std::string& message, LONG errorCode, wstring extra=L"")
         : std::runtime_error{ message }
         , m_errorCode{ errorCode }
+		, m_extra{ extra }
     {}
 
     // Get the error code returned by Windows registry APIs
@@ -308,12 +319,30 @@ public:
     {
         return m_errorCode;
     }
+	wstring Extra() const
+	{
+		return m_extra;
+	}
 
 private:
     // Error code, as returned by Windows registry APIs
     LONG m_errorCode;
+	wstring m_extra;
 };
 
+inline std::string wstring2string(const std::wstring & s)
+{
+	const size_t newsize = s.length() + 1;
+	char *nstring = new char[newsize];
+	for (size_t i = 0; i < s.length(); i++)
+	{
+		nstring[i] = (char)(s[i] & 0xff);
+	}
+	nstring[s.length()] = 0;
+	std::string str(nstring);
+	delete nstring;
+	return str;
+}
 
 //------------------------------------------------------------------------------
 //          Overloads of relational comparison operators for RegKey
@@ -361,7 +390,7 @@ inline RegKey::RegKey(const HKEY hKey) noexcept
 
 inline RegKey::RegKey(const HKEY hKeyParent, const std::wstring& subKey)
 {
-    Create(hKeyParent, subKey);
+    Open(hKeyParent, subKey, KEY_READ);
 }
 
 
@@ -379,10 +408,11 @@ inline RegKey::RegKey(const HKEY hKeyParent, const std::wstring& subKey, REGSAM 
 
 
 inline RegKey::RegKey(RegKey&& other) noexcept
-    : m_hKey{ other.m_hKey }
+	: m_hKey{ other.m_hKey }//, m_loadedKey{ other.m_loadedKey }
 {
     // Other doesn't own the handle anymore
     other.m_hKey = nullptr;
+//	other.m_loadedKey.clear();
 }
 
 
@@ -396,7 +426,9 @@ inline RegKey& RegKey::operator=(RegKey&& other) noexcept
 
         // Move from other (i.e. take ownership of other's raw handle)
         m_hKey = other.m_hKey;
+		//m_loadedKey = other.m_loadedKey;
         other.m_hKey = nullptr;
+		//other.m_loadedKey.clear();
     }
     return *this;
 }
@@ -420,18 +452,17 @@ inline void RegKey::Close() noexcept
 	if (IsValid())
 	{
 		// Remove any existing loaded subkeys
-		while (!m_loadedKeys.empty())
-		{
-			UnloadKey(m_loadedKeys.back());
-		}
+		//if (!m_loadedKey.empty())
+		//{
+		//	UnloadKey(m_loadedKey);
+		//	m_loadedKey.clear();
+		//}
 		// Do not call RegCloseKey on predefined keys
 		if (!IsPredefined())
 		{
 			::RegCloseKey(m_hKey);
 		}
 
-		m_loadedKeys.clear();
-		// Avoid dangling references
 		m_hKey = nullptr;
 	}
 }
@@ -454,15 +485,15 @@ inline bool RegKey::IsPredefined() const noexcept
     // Predefined keys
     // https://msdn.microsoft.com/en-us/library/windows/desktop/ms724836(v=vs.85).aspx
     
-    if (   (m_hKey == HKEY_CURRENT_USER)
-        || (m_hKey == HKEY_LOCAL_MACHINE)
+    if ( (m_hKey == HKEY_LOCAL_MACHINE)
+        || (m_hKey == HKEY_USERS)
+		|| (m_hKey == HKEY_CURRENT_USER)
         || (m_hKey == HKEY_CLASSES_ROOT)
         || (m_hKey == HKEY_CURRENT_CONFIG)
         || (m_hKey == HKEY_CURRENT_USER_LOCAL_SETTINGS)
         || (m_hKey == HKEY_PERFORMANCE_DATA)
         || (m_hKey == HKEY_PERFORMANCE_NLSTEXT)
-        || (m_hKey == HKEY_PERFORMANCE_TEXT)
-        || (m_hKey == HKEY_USERS))
+        || (m_hKey == HKEY_PERFORMANCE_TEXT) )
     {
         return true;
     }
@@ -471,6 +502,7 @@ inline bool RegKey::IsPredefined() const noexcept
 }
 
 
+ // Transfer ownership to the caller
 inline HKEY RegKey::Detach() noexcept
 {
     HKEY hKey{ m_hKey };
@@ -478,11 +510,11 @@ inline HKEY RegKey::Detach() noexcept
     // We don't own the HKEY handle anymore
     m_hKey = nullptr;
 
-    // Transfer ownership to the caller
     return hKey;
 }
 
 
+// Take ownership of the input hKey
 inline void RegKey::Attach(const HKEY hKey) noexcept
 {
     // Prevent self-attach
@@ -491,7 +523,6 @@ inline void RegKey::Attach(const HKEY hKey) noexcept
         // Close any open registry handle
         Close();
 
-        // Take ownership of the input hKey
         m_hKey = hKey;
     }
 }
@@ -504,6 +535,7 @@ inline void RegKey::SwapWith(RegKey& other) noexcept
 
     // Swap the raw handle members
     swap(m_hKey, other.m_hKey);
+//	swap(m_loadedKey, other.m_loadedKey);
 }
 
 
@@ -551,7 +583,7 @@ inline void RegKey::Create(
     );
     if (retCode != ERROR_SUCCESS)
     {
-        throw RegException{ "RegCreateKeyEx failed.", retCode };
+        throw RegException{ "RegCreateKeyEx failed.", retCode, subKey};
     }
 
     // Safely close any previously opened key
@@ -578,7 +610,7 @@ inline void RegKey::Open(
     );
     if (retCode != ERROR_SUCCESS)
     {
-        throw RegException{ "RegOpenKeyEx failed.", retCode };
+        throw RegException{ "RegOpenKeyEx failed .", retCode, subKey};
     }
 
     // Safely close any previously opened key
@@ -911,6 +943,8 @@ inline std::wstring RegKey::GetStringValue(const std::wstring& valueName)
 	// Note that dataSize is in bytes and includes the terminating NUL;
 	// we have to convert the size from bytes to wchar_ts for wstring::resize.
 	std::wstring result;
+	if (!dataSize)
+		return result;
 	result.resize(dataSize / sizeof(wchar_t));
 
 	// Call RegGetValue for the second time to read the string's content
@@ -949,6 +983,8 @@ inline std::wstring RegKey::GetStringValue(const std::wstring& valueName)
     // Note that dataSize is in bytes and includes the terminating NUL;
     // we have to convert the size from bytes to wchar_ts for wstring::resize.
     std::wstring result;
+	if (!dataSize)
+		return result;
     result.resize(dataSize / sizeof(wchar_t));
 
     // Call RegGetValue for the second time to read the string's content
@@ -1466,16 +1502,20 @@ inline void RegKey::LoadKey(const std::wstring& subKey, const std::wstring& file
     // We can't close the registry key.  It sets m_hKey to nullptr so this will always fail
 	// Close();
 
+	//if (!m_loadedKey.empty())
+	//{
+	//	throw RegException{ "RegLoadKey already used.", ERROR_TOO_MANY_OPEN_FILES , subKey };
+	//}
     LONG retCode = ::RegLoadKey(m_hKey, subKey.c_str(), filename.c_str());
 	if (retCode == ERROR_PRIVILEGE_NOT_HELD)
 	{
-		throw RegException{ "Load on HKEY_LOCAL_MACHINE or HKEY_USERS.", retCode };
+		throw RegException{ "RegLoadKey missing privilege.", retCode };
 	}
     if (retCode != ERROR_SUCCESS)
     {
-        throw RegException{ "RegLoadKey failed.", retCode };
+        throw RegException{ "RegLoadKey failed.", retCode, filename };
     }
-	m_loadedKeys.emplace_back(subKey);
+	//m_loadedKey = subKey;
 }
 
 #ifdef SUPPORT_REGGETVALUE
@@ -1493,14 +1533,7 @@ inline void RegKey::LoadPrivate(const std::wstring& filename)
 
 inline void RegKey::UnloadKey(const std::wstring& subKey)
 {
-	auto found = std::find(m_loadedKeys.cbegin(), m_loadedKeys.cend(), subKey);
-	if (found != m_loadedKeys.cend())
-	{
-		OutputDebugStringW((*found).c_str());
-		::RegUnLoadKey(m_hKey, std::wstring(*found).c_str());
-		OutputDebugStringW(L" unloaded key");
-		m_loadedKeys.erase(found);
-	}
+	DWORD status = ::RegUnLoadKey(m_hKey, subKey.c_str());
 }
 
 
