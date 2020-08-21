@@ -302,16 +302,16 @@ class RegException
     : public std::runtime_error
 {
 public:
-    RegException(const char* message, LONG errorCode, wstring extra=L"")
+    RegException(const char* message, LONG errorCode, std::wstring extra=L"")
         : std::runtime_error{ message }
         , m_errorCode{ errorCode }
-		, m_extra{ extra }
+        , m_extra{ extra }
     {}
 
-    RegException(const std::string& message, LONG errorCode, wstring extra=L"")
+    RegException(const std::string& message, LONG errorCode, std::wstring extra=L"")
         : std::runtime_error{ message }
         , m_errorCode{ errorCode }
-		, m_extra{ extra }
+        , m_extra{ extra }
     {}
 
     // Get the error code returned by Windows registry APIs
@@ -319,15 +319,15 @@ public:
     {
         return m_errorCode;
     }
-	wstring Extra() const
-	{
-		return m_extra;
-	}
+    std::wstring Extra() const
+    {
+        return m_extra;
+    }
 
 private:
     // Error code, as returned by Windows registry APIs
     LONG m_errorCode;
-	wstring m_extra;
+    std::wstring m_extra;
 };
 
 inline std::string wstring2string(const std::wstring & s)
